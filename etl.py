@@ -37,7 +37,7 @@ def extract(spark):
         month = f'{i:02}'
         url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
             year, month)
-        csv_name = 'data/green_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
+        csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
             year, month)
         os.system(f'curl -o {csv_name} {url}')
 
@@ -45,11 +45,11 @@ def extract(spark):
     green_taxi = spark.read.parquet('data/green_taxi')
     yellow_taxi = spark.read.parquet('data/yellow_taxi')
     df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
-                             inferSchema=True, header=True)
-    return green_taxi, yellow_taxi, df_zone
+                             inferSchema=True, header=True).filter(col('Borough') != 'Unknown')
+    return [green_taxi, yellow_taxi], df_zone
 
 
-def tranform(df):
+def transform(df):
     for i in ['passenger_count', 'RateCodeID', 'payment_type', 'trip_type']:
         df = df.withColumn(i, col(i).cast(IntegerType()))
     payment_type_mapping = when(col('id') == 1, 'Credit card'). \
@@ -78,7 +78,7 @@ def tranform(df):
     trip_time_in_mins = unix_timestamp(
         col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))
     df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2))
-    return
+    return [df_payment, df_ratecode, df_vendor, df]
 
 
 def load(df, table: str):
@@ -98,4 +98,9 @@ def load(df, table: str):
 
 def etl_main():
     spark = init_spark()
-    extract(spark)
+    dfs, df_zone = extract(spark)
+    for df in dfs:
+        tables = transform(df)
+    table_names = ['payment_type', 'rate_type', 'vendor']
+    for table, table_names in zip(tables):
+        pass
