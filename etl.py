@@ -8,8 +8,11 @@ year = 2022
 
 
 def init_spark():
+    os.system(
+        'curl -o driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
     spark = SparkSession.builder \
         .appName("ETL-with-spark") \
+        .config("spark.jars", "driver/postgresql-42.6.0.jar") \
         .getOrCreate()
     return spark
 
@@ -49,7 +52,7 @@ def extract(spark):
     return [green_taxi, yellow_taxi], df_zone
 
 
-def transform(df):
+def generate_dim_table(df):
     for i in ['passenger_count', 'RateCodeID', 'payment_type', 'trip_type']:
         df = df.withColumn(i, col(i).cast(IntegerType()))
     payment_type_mapping = when(col('id') == 1, 'Credit card'). \
@@ -74,33 +77,37 @@ def transform(df):
         'VendorID', 'id').distinct().dropna().orderBy(col('id'))
     df_vendor = df_vendor.withColumn('vendor', when(col('id') == 1, 'Creative Mobile Technologies, LLC').
                                      when(col('id') == 2, 'VeriFone Inc.'))
+    return [df_payment, df_ratecode, df_vendor]
 
+
+def transform(df):
     trip_time_in_mins = unix_timestamp(
         col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))
     df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2))
-    return [df_payment, df_ratecode, df_vendor, df]
+    return df
 
 
-def load(df, table: str):
-    host = ''
-    port = ''
-    database = ''
-    user = ''
-    password = ''
+def load(df, table_name: str):
+    host = 'localhost'
+    port = '5432'
+    database = 'etl_with_spark_nytaxi'
+    user = 'postgres'
+    password = 'tanduy2407'
     url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
     properties = {
         'user': user,
         'password': password,
         'driver': 'org.postgresql.Driver'}
-    df.write.jdbc(url=url, table=table, mode='overwrite',
+    df.write.jdbc(url=url, table=table_name, mode='overwrite',
                   properties=properties)
 
 
 def etl_main():
     spark = init_spark()
     dfs, df_zone = extract(spark)
-    for df in dfs:
-        tables = transform(df)
-    table_names = ['payment_type', 'rate_type', 'vendor']
-    for table, table_names in zip(tables):
-        pass
+    # for df in dfs:
+    #     tables = transform(df)
+    # table_names = ['payment_type', 'rate_type', 'vendor']
+    # for table, table_names in zip(tables):
+    #     pass
+etl_main()
