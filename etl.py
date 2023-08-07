@@ -2,12 +2,18 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
+import json
 
 
 year = 2022
 
 
 def init_spark():
+    try:
+        os.makedirs('driver')
+    except OSError as err:
+        print(f'Error: {err}')
+
     os.system(
         'curl -o driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
     spark = SparkSession.builder \
@@ -47,6 +53,8 @@ def extract(spark):
     print('Download successfully')
     green_taxi = spark.read.parquet('data/green_taxi')
     yellow_taxi = spark.read.parquet('data/yellow_taxi')
+
+    os.system(f'curl -o data/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
     df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
                              inferSchema=True, header=True).filter(col('Borough') != 'Unknown')
     return [green_taxi, yellow_taxi], df_zone
@@ -88,11 +96,15 @@ def transform(df):
 
 
 def load(df, table_name: str):
-    host = 'localhost'
-    port = '5432'
-    database = 'etl_with_spark_nytaxi'
-    user = 'postgres'
-    password = 'tanduy2407'
+    # Read credentials from the config file
+    with open('config.json', 'r') as config_file:
+        config_data = json.load(config_file)
+    host = config_data['host']
+    port = config_data['port']
+    database = config_data['database']
+    user = config_data['user']
+    password = config_data['password']
+
     url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
     properties = {
         'user': user,
@@ -100,14 +112,21 @@ def load(df, table_name: str):
         'driver': 'org.postgresql.Driver'}
     df.write.jdbc(url=url, table=table_name, mode='overwrite',
                   properties=properties)
+    print(f'Insert data into {table_name} successfully!')
 
 
 def etl_main():
     spark = init_spark()
     dfs, df_zone = extract(spark)
-    # for df in dfs:
-    #     tables = transform(df)
-    # table_names = ['payment_type', 'rate_type', 'vendor']
-    # for table, table_names in zip(tables):
-    #     pass
+    dim_tables = generate_dim_table(dfs[0])
+    dim_tables_name = ['payment', 'ratecode', 'vendor']
+    for tbls, name in zip(dim_tables, dim_tables_name):
+        load(tbls, name)
+    load(df_zone, 'taxi_zone_lookup')
+
+    tables_name = ['green_taxi', 'yellow_taxi']
+    for df, name in zip(dfs, tables_name):
+        load(df, name)
+        
+
 etl_main()
