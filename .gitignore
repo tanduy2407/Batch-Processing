@@ -1,5 +1,5 @@
 data
 driver
 .vscode
-*.json
+config
 postgres_data

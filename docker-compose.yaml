@@ -1,14 +1,7 @@
 services:
-  myapp:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
-    ports:
-      - "5000:5000"
-  spark:
-    build:
-      context: .
-      dockerfile: spark/Dockerfile
+  etl_job:
+    build: .
+    container_name: etl_job
   pgdatabase:
     image: postgres:15
     environment:
@@ -16,13 +9,21 @@ services:
       - POSTGRES_PASSWORD=tanduy2407
       - POSTGRES_DB=etl_with_spark_nytaxi
     volumes:
-      - "./postgres_data:/var/lib/postgresql/data:rw"
+      - ./postgres_data:/var/lib/postgresql/data:rw
     ports:
-      - "5432:5432"
+      - 5432:5432
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 5
+    restart: always
   pgadmin:
     image: dpage/pgadmin4
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@admin.com
       - PGADMIN_DEFAULT_PASSWORD=root
     ports:
-      - "8080:80"
+      - 8080:80
+    depends_on:
+      pgdatabase:
+        condition: service_healthy
