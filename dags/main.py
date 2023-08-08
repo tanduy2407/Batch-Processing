@@ -10,8 +10,8 @@ default_args = {
     'email': ['airflow@example.com'],
     'email_on_failure': False,
     'email_on_retry': False,
-    # 'retries': 1,
-    # 'retry_delay': dt.timedelta(minutes=1)
+    'retries': 1,
+    'retry_delay': dt.timedelta(minutes=1)
 }
 
 dag = DAG(
@@ -25,9 +25,9 @@ def etl_main():
 	download_files()
 	spark = init_spark()
 	dfs, df_zone = extract(spark)
-	dim_tables = generate_dim_table(dfs[0])
+	dim_dfs = generate_dim_table(dfs[0])
 	dim_tables_name = ['payment', 'ratecode', 'vendor']
-	for tbls, name in zip(dim_tables, dim_tables_name):
+	for tbls, name in zip(dim_dfs, dim_tables_name):
 		load(tbls, name)
 	load(df_zone, 'taxi_zone_lookup')
 
@@ -35,9 +35,6 @@ def etl_main():
 	for df, name in zip(dfs, tables_name):
 		transform(df)
 		load(df, name)
-
-
-etl_main()
 
 with dag:
     run_etl = PythonOperator(

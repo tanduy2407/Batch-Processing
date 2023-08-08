@@ -21,23 +21,23 @@ def download_files():
 	os.system(
 		'wget -Odata/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
 	
-	print('Start download parquet files')
-	for i in range(1, 3):
-		month = f'{i:02}'
-		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{0}-{1}.parquet'.format(
-			year, month)
-		csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
-			year, month)
-		os.system(f'wget -O {csv_name} {url}')
+	# print('Start download parquet files')
+	# for i in range(1, 3):
+	# 	month = f'{i:02}'
+	# 	url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{0}-{1}.parquet'.format(
+	# 		year, month)
+	# 	csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
+	# 		year, month)
+	# 	os.system(f'wget -O {csv_name} {url}')
 
-	for i in range(1, 3):
-		month = f'{i:02}'
-		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
-			year, month)
-		csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
-			year, month)
-		os.system(f'wget -O {csv_name} {url}')
-	print('Download successfully')
+	# for i in range(1, 3):
+	# 	month = f'{i:02}'
+	# 	url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
+	# 		year, month)
+	# 	csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
+	# 		year, month)
+	# 	os.system(f'wget -O {csv_name} {url}')
+	# print('Download successfully')
 
 
 def init_spark():
@@ -49,11 +49,12 @@ def init_spark():
 
 
 def extract(spark):
-	green_taxi = spark.read.parquet('data/green_taxi')
-	yellow_taxi = spark.read.parquet('data/yellow_taxi')
+	# green_taxi = spark.read.parquet('data/green_taxi')
+	# yellow_taxi = spark.read.parquet('data/yellow_taxi')
 	df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
 							 inferSchema=True, header=True).filter(col('Borough') != 'Unknown')
-	return [green_taxi, yellow_taxi], df_zone
+	# return [green_taxi, yellow_taxi], df_zone
+	return df_zone
 
 
 def generate_dim_table(df):
@@ -116,17 +117,19 @@ def load(df, table_name: str):
 def etl_main():
 	download_files()
 	spark = init_spark()
-	dfs, df_zone = extract(spark)
-	dim_tables = generate_dim_table(dfs[0])
-	dim_tables_name = ['payment', 'ratecode', 'vendor']
-	for tbls, name in zip(dim_tables, dim_tables_name):
-		load(tbls, name)
+	# dfs, df_zone = extract(spark)
+	df_zone = extract(spark)
+
+	# dim_dfs = generate_dim_table(dfs[0])
+	# dim_tables_name = ['payment', 'ratecode', 'vendor']
+	# for tbls, name in zip(dim_dfs, dim_tables_name):
+	# 	load(tbls, name)
 	load(df_zone, 'taxi_zone_lookup')
 
-	tables_name = ['green_taxi', 'yellow_taxi']
-	for df, name in zip(dfs, tables_name):
-		transform(df)
-		load(df, name)
+	# tables_name = ['green_taxi', 'yellow_taxi']
+	# for df, name in zip(dfs, tables_name):
+	# 	transform(df)
+	# 	load(df, name)
 
 
 etl_main()
