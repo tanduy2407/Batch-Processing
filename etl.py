@@ -17,41 +17,41 @@ def download_files():
 		print(f'Error: {err}')
 
 	os.system(
-		'curl -o app/driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
+		'wget -O driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
 	os.system(
-		'curl -o app/data/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
+		'wget -Odata/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
 	
 	print('Start download parquet files')
 	for i in range(1, 3):
 		month = f'{i:02}'
 		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		csv_name = 'app/data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
+		csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'curl -o {csv_name} {url}')
+		os.system(f'wget -O {csv_name} {url}')
 
 	for i in range(1, 3):
 		month = f'{i:02}'
 		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		csv_name = 'app/data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
+		csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'curl -o {csv_name} {url}')
+		os.system(f'wget -O {csv_name} {url}')
 	print('Download successfully')
 
 
 def init_spark():
 	spark = SparkSession.builder \
 		.appName("ETL-with-spark") \
-		.config("spark.jars", "app/driver/postgresql-42.6.0.jar") \
+		.config("spark.jars", "driver/postgresql-42.6.0.jar") \
 		.getOrCreate()
 	return spark
 
 
 def extract(spark):
-	green_taxi = spark.read.parquet('app/data/green_taxi')
-	yellow_taxi = spark.read.parquet('app/data/yellow_taxi')
-	df_zone = spark.read.csv('app/data/taxi_zone_lookup.csv',
+	green_taxi = spark.read.parquet('data/green_taxi')
+	yellow_taxi = spark.read.parquet('data/yellow_taxi')
+	df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
 							 inferSchema=True, header=True).filter(col('Borough') != 'Unknown')
 	return [green_taxi, yellow_taxi], df_zone
 
@@ -93,10 +93,11 @@ def transform(df):
 
 def load(df, table_name: str):
 	# Read credentials from the config file
-	with open('config.json', 'r') as config_file:
+	with open('config/config.json', 'r') as config_file:
 		config_data = json.load(config_file)
 	host = config_data['host']
 	port = config_data['port']
+	print(host, port)
 	database = config_data['database']
 	user = config_data['user']
 	password = config_data['password']
@@ -124,6 +125,7 @@ def etl_main():
 
 	tables_name = ['green_taxi', 'yellow_taxi']
 	for df, name in zip(dfs, tables_name):
+		transform(df)
 		load(df, name)
 
 

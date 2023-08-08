@@ -25,6 +25,7 @@ WORKDIR /app
 # Copy files
 COPY requirements.txt .
 COPY etl.py .
+COPY config/config.json config/config.json
 
 # Install package with pip
 RUN apt-get install -y python3 python3-pip
