@@ -20,45 +20,44 @@ def download_files():
 		'wget -O driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
 	os.system(
 		'wget -Odata/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
-	
-	# print('Start download parquet files')
-	# for i in range(1, 3):
-	# 	month = f'{i:02}'
-	# 	url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{0}-{1}.parquet'.format(
-	# 		year, month)
-	# 	csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
-	# 		year, month)
-	# 	os.system(f'wget -O {csv_name} {url}')
 
-	# for i in range(1, 3):
-	# 	month = f'{i:02}'
-	# 	url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
-	# 		year, month)
-	# 	csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
-	# 		year, month)
-	# 	os.system(f'wget -O {csv_name} {url}')
-	# print('Download successfully')
+	print('Start download parquet files')
+	for i in range(1, 3):
+		month = f'{i:02}'
+		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_{0}-{1}.parquet'.format(
+			year, month)
+		csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
+			year, month)
+		os.system(f'wget -O {csv_name} {url}')
+
+	for i in range(1, 3):
+		month = f'{i:02}'
+		url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{0}-{1}.parquet'.format(
+			year, month)
+		csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
+			year, month)
+		os.system(f'wget -O {csv_name} {url}')
+	print('Download successfully')
 
 
-def init_spark():
+def start_spark(app_name='ETL-with-spark'):
 	spark = SparkSession.builder \
-		.appName("ETL-with-spark") \
-		.config("spark.jars", "driver/postgresql-42.6.0.jar") \
+		.appName(app_name) \
+		.config('spark.jars', 'driver/postgresql-42.6.0.jar') \
 		.getOrCreate()
 	return spark
 
 
 def extract(spark):
-	# green_taxi = spark.read.parquet('data/green_taxi')
-	# yellow_taxi = spark.read.parquet('data/yellow_taxi')
+	green_taxi = spark.read.parquet('data/green_taxi')
+	yellow_taxi = spark.read.parquet('data/yellow_taxi')
 	df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
 							 inferSchema=True, header=True).filter(col('Borough') != 'Unknown')
-	# return [green_taxi, yellow_taxi], df_zone
-	return df_zone
+	return [green_taxi, yellow_taxi], df_zone
 
 
 def generate_dim_table(df):
-	for i in ['passenger_count', 'RateCodeID', 'payment_type', 'trip_type']:
+	for i in ['RateCodeID', 'payment_type', 'trip_type']:
 		df = df.withColumn(i, col(i).cast(IntegerType()))
 	payment_type_mapping = when(col('id') == 1, 'Credit card'). \
 		when(col('id') == 2, 'Cash'). \
@@ -85,10 +84,18 @@ def generate_dim_table(df):
 	return [df_payment, df_ratecode, df_vendor]
 
 
-def transform(df):
-	trip_time_in_mins = unix_timestamp(
-		col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))
-	df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2))
+def transform(df, color_taxi):
+	if color_taxi == 'green_taxi':
+		trip_time_in_mins = unix_timestamp(
+			col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))		
+	if color_taxi == 'yellow_taxi':
+		trip_time_in_mins = unix_timestamp(
+			col('tpep_dropoff_datetime')) - unix_timestamp(col('tpep_pickup_datetime'))
+	df = df.withColumn('passenger_count', col('passenger_count').cast(IntegerType()))	
+	df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2)) # calculate time in minutes
+	df = df.withColumn('trip_distance_in_km', round(col('trip_distance') * 1.6, 2)) # convert miles into km
+	time_in_hours = col('trip_time_in_mins') / 60
+	df = df.withColumn('average_velocity',  round(col('trip_distance_in_km') / time_in_hours, 2)) # calculate average speed
 	return df
 
 
@@ -113,23 +120,20 @@ def load(df, table_name: str):
 	print(f'Insert data into {table_name} successfully!')
 
 
-
 def etl_main():
 	download_files()
-	spark = init_spark()
-	# dfs, df_zone = extract(spark)
-	df_zone = extract(spark)
-
-	# dim_dfs = generate_dim_table(dfs[0])
-	# dim_tables_name = ['payment', 'ratecode', 'vendor']
-	# for tbls, name in zip(dim_dfs, dim_tables_name):
-	# 	load(tbls, name)
+	spark = start_spark()
+	dfs, df_zone = extract(spark)
+	dim_dfs = generate_dim_table(dfs[0])
+	dim_tables_name = ['payment', 'ratecode', 'vendor']
+	for tbls, name in zip(dim_dfs, dim_tables_name):
+		load(tbls, name)
 	load(df_zone, 'taxi_zone_lookup')
 
-	# tables_name = ['green_taxi', 'yellow_taxi']
-	# for df, name in zip(dfs, tables_name):
-	# 	transform(df)
-	# 	load(df, name)
+	tables_name = ['green_taxi', 'yellow_taxi']
+	for df, name in zip(dfs, tables_name):
+		transform(df, name)
+		load(df, name)
 
 
 etl_main()

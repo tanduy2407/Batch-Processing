@@ -15,11 +15,12 @@ default_args = {
 }
 
 dag = DAG(
-    'youtube_dag',
+    'spark_dag',
     default_args=default_args,
-    description='Youtube ETL',
+    description='ETL with Spark',
     schedule_interval=dt.timedelta(minutes=50),
 )
+
 
 def etl_main():
 	download_files()
@@ -36,11 +37,11 @@ def etl_main():
 		transform(df)
 		load(df, name)
 
+
 with dag:
-    run_etl = PythonOperator(
+    etl = PythonOperator(
         task_id='etl_with_spark',
         python_callable=etl_main,
         dag=dag,
     )
-
-    run_etl
+    etl

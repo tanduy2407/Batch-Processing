@@ -3,3 +3,5 @@ driver
 .vscode
 config
 postgres_data
+__pycache__
+logs
