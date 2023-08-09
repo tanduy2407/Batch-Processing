@@ -17,9 +17,9 @@ def download_files():
 		print(f'Error: {err}')
 
 	os.system(
-		'wget -O driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
+		'curl -o driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
 	os.system(
-		'wget -Odata/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
+		'curl -o data/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
 
 	print('Start download parquet files')
 	for i in range(1, 3):
@@ -28,7 +28,7 @@ def download_files():
 			year, month)
 		csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'wget -O {csv_name} {url}')
+		os.system(f'curl -o {csv_name} {url}')
 
 	for i in range(1, 3):
 		month = f'{i:02}'
@@ -36,7 +36,7 @@ def download_files():
 			year, month)
 		csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'wget -O {csv_name} {url}')
+		os.system(f'curl -o {csv_name} {url}')
 	print('Download successfully')
 
 
@@ -84,7 +84,7 @@ def generate_dim_table(df):
 	return [df_payment, df_ratecode, df_vendor]
 
 
-def transform(df, color_taxi):
+def transform(df, color_taxi: str):
 	if color_taxi == 'green_taxi':
 		trip_time_in_mins = unix_timestamp(
 			col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))		
@@ -101,11 +101,10 @@ def transform(df, color_taxi):
 
 def load(df, table_name: str):
 	# Read credentials from the config file
-	with open('config/config.json', 'r') as config_file:
+	with open('config/config_staging.json', 'r') as config_file:
 		config_data = json.load(config_file)
 	host = config_data['host']
 	port = config_data['port']
-	print(host, port)
 	database = config_data['database']
 	user = config_data['user']
 	password = config_data['password']
@@ -132,8 +131,9 @@ def etl_main():
 
 	tables_name = ['green_taxi', 'yellow_taxi']
 	for df, name in zip(dfs, tables_name):
-		transform(df, name)
+		df = transform(df, name)
 		load(df, name)
+	spark.stop()
 
 
 etl_main()
