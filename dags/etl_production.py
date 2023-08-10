@@ -24,8 +24,9 @@ def read_data(spark, table_name:str) -> DataFrame:
 	return df
 
 
-def join_data(left, right, left_on, right_on, how='left'):
-	pass
+def join_data(left, right, left_on, right_on, how='inner'):
+	df = left.join(right, left[left_on] == right[right_on], how)
+	return df
 
 
 def etl_production():

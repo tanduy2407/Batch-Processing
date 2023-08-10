@@ -101,13 +101,13 @@ def transform(df, color_taxi: str):
 
 def load(df, table_name: str):
 	# Read credentials from the config file
-	with open('config/config_staging.json', 'r') as config_file:
+	with open('config/config.json', 'r') as config_file:
 		config_data = json.load(config_file)
-	host = config_data['host']
-	port = config_data['port']
-	database = config_data['database']
-	user = config_data['user']
-	password = config_data['password']
+	host = config_data['staging']['host']
+	port = config_data['staging']['port']
+	database = config_data['staging']['database']
+	user = config_data['staging']['user']
+	password = config_data['staging']['password']
 
 	url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
 	properties = {
