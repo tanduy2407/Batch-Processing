@@ -5,14 +5,14 @@ from etl_staging import start_spark, load
 import json
 
 
-def read_data(spark, table_name:str) -> DataFrame:
-	with open('config/config_production.json', 'r') as config_file:
-		config_data = json.load(config_file)
-		host = config_data['host']
-		port = config_data['port']
-		database = config_data['database']
-		user = config_data['user']
-		password = config_data['password']
+def read_data(spark, schema: str, table_name:str) -> DataFrame:
+	with open('config/config.json', 'r') as config:
+		config_data = json.load(config)
+		host = config_data[schema]['host']
+		port = config_data[schema]['port']
+		database = config_data[schema]['database']
+		user = config_data[schema]['user']
+		password = config_data[schema]['password']
 
 	url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
 	properties = {
@@ -24,15 +24,26 @@ def read_data(spark, table_name:str) -> DataFrame:
 	return df
 
 
-def join_data(left, right, left_on, right_on, how='inner'):
+def join_data(left, right, left_on: str, right_on: str, how='inner') -> DataFrame:
 	df = left.join(right, left[left_on] == right[right_on], how)
 	return df
 
 
 def etl_production():
 	spark = start_spark()
-	green_taxi = read_data(spark, 'green_taxi')
-	yellow_taxi = read_data(spark, 'yellow_taxi')
-	taxi_zone = read_data(spark, 'taxi_zone_lookup')
+	schema_staging = 'staging'
+	green_taxi = read_data(spark, schema_staging, table_name='green_taxi')
+	yellow_taxi = read_data(spark, schema_staging, table_name='yellow_taxi')
+	taxi_zone = read_data(spark, schema_staging, table_name='taxi_zone_lookup').select('LocationID', 'Zone', 'Borough')
+	join_data_green = join_data(green_taxi, taxi_zone, 'PULocationID', 'LocationID')
+	join_data_green = join_data_green.withColumnRenamed('Zone', 'pickup_zone').withColumnRenamed('Borough', 'pickup_borough')
+	join_data_green = join_data(green_taxi, taxi_zone, 'DOLocationID', 'LocationID')
+	join_data_green = join_data_green.withColumnRenamed('Zone', 'dropoff_zone').withColumnRenamed('Borough', 'dropoff_borough')	
+
+	join_data_yellow = join_data(yellow_taxi, taxi_zone, 'PULocationID', 'LocationID')
+	join_data_yellow = join_data_yellow.withColumnRenamed('Zone', 'pickup_zone').withColumnRenamed('Borough', 'pickup_borough')
+	join_data_yellow = join_data(yellow_taxi, taxi_zone, 'DOLocationID', 'LocationID')
+	join_data_yellow = join_data_yellow.withColumnRenamed('Zone', 'dropoff_zone').withColumnRenamed('Borough', 'dropoff_borough')	
+	schema_production = 'production'
 
 	pass

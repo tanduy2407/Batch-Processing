@@ -28,8 +28,8 @@ COPY etl.py .
 COPY config/config.json config/config.json
 
 # Install package with pip
-RUN apt-get install -y python3 python3-pip
+RUN apt-get install -y python3.10 python3-pip
 RUN pip install -r requirements.txt
 
 # Run container as an executable
-CMD ["python3", "etl.py"]
+CMD ["python3", "main1.py"]

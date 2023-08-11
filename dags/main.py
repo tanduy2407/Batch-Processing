@@ -1,4 +1,4 @@
-from etl import download_files, extract, transform, load, init_spark, generate_dim_table
+from etl_staging import download_files, extract, transform, load, init_spark, generate_dim_table
 import datetime as dt
 from airflow import DAG
 from airflow.operators.python import PythonOperator

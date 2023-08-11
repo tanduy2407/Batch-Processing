@@ -1,5 +1,5 @@
 import os
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
 import json
@@ -40,7 +40,10 @@ def download_files():
 	print('Download successfully')
 
 
-def start_spark(app_name='ETL-with-spark'):
+def start_spark(app_name='Batch-Processing'):
+	"""
+	
+	"""
 	spark = SparkSession.builder \
 		.appName(app_name) \
 		.config('spark.jars', 'driver/postgresql-42.6.0.jar') \
@@ -84,30 +87,30 @@ def generate_dim_table(df):
 	return [df_payment, df_ratecode, df_vendor]
 
 
-def transform(df, color_taxi: str):
+def transform(df, color_taxi: str) -> DataFrame:
 	if color_taxi == 'green_taxi':
-		trip_time_in_mins = unix_timestamp(
-			col('lpep_dropoff_datetime')) - unix_timestamp(col('lpep_pickup_datetime'))		
+		df = df.withColumnRenamed('lpep_pickup_datetime', 'pickup_datetime').withColumnRenamed('lpep_dropoff_datetime', 'dropoff_datetime')
 	if color_taxi == 'yellow_taxi':
-		trip_time_in_mins = unix_timestamp(
-			col('tpep_dropoff_datetime')) - unix_timestamp(col('tpep_pickup_datetime'))
-	df = df.withColumn('passenger_count', col('passenger_count').cast(IntegerType()))	
+		df = df.withColumnRenamed('tpep_pickup_datetime', 'pickup_datetime').withColumnRenamed('tpep_dropoff_datetime', 'dropoff_datetime')
+	trip_time_in_mins = unix_timestamp(
+		col('dropoff_datetime')) - unix_timestamp(col('pickup_datetime'))		
 	df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2)) # calculate time in minutes
+	df = df.withColumn('passenger_count', col('passenger_count').cast(IntegerType()))	
 	df = df.withColumn('trip_distance_in_km', round(col('trip_distance') * 1.6, 2)) # convert miles into km
 	time_in_hours = col('trip_time_in_mins') / 60
 	df = df.withColumn('average_velocity',  round(col('trip_distance_in_km') / time_in_hours, 2)) # calculate average speed
 	return df
 
 
-def load(df, table_name: str):
+def load(df, schema: str, table_name: str):
 	# Read credentials from the config file
-	with open('config/config.json', 'r') as config_file:
-		config_data = json.load(config_file)
-	host = config_data['staging']['host']
-	port = config_data['staging']['port']
-	database = config_data['staging']['database']
-	user = config_data['staging']['user']
-	password = config_data['staging']['password']
+	with open('config/config.json', 'r') as config:
+		config_data = json.load(config)
+	host = config_data[schema]['host']
+	port = config_data[schema]['port']
+	database = config_data[schema]['database']
+	user = config_data[schema]['user']
+	password = config_data[schema]['password']
 
 	url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
 	properties = {
@@ -120,19 +123,20 @@ def load(df, table_name: str):
 
 
 def etl_main():
+	schema = 'staging'
 	download_files()
 	spark = start_spark()
 	dfs, df_zone = extract(spark)
 	dim_dfs = generate_dim_table(dfs[0])
 	dim_tables_name = ['payment', 'ratecode', 'vendor']
 	for tbls, name in zip(dim_dfs, dim_tables_name):
-		load(tbls, name)
-	load(df_zone, 'taxi_zone_lookup')
+		load(tbls, schema, table_name=name)
+	load(df_zone, schema, table_name='taxi_zone_lookup')
 
 	tables_name = ['green_taxi', 'yellow_taxi']
 	for df, name in zip(dfs, tables_name):
 		df = transform(df, name)
-		load(df, name)
+		load(df, schema, table_name=name)
 	spark.stop()
 
 
