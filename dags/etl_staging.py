@@ -94,6 +94,7 @@ def transform(df, color_taxi: str) -> DataFrame:
 		df = df.withColumnRenamed('tpep_pickup_datetime', 'pickup_datetime').withColumnRenamed('tpep_dropoff_datetime', 'dropoff_datetime')
 	trip_time_in_mins = unix_timestamp(
 		col('dropoff_datetime')) - unix_timestamp(col('pickup_datetime'))		
+	# df = df.withColumn('trip_id', monotonically_increasing_id())
 	df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2)) # calculate time in minutes
 	df = df.withColumn('passenger_count', col('passenger_count').cast(IntegerType()))	
 	df = df.withColumn('trip_distance_in_km', round(col('trip_distance') * 1.6, 2)) # convert miles into km
@@ -102,15 +103,15 @@ def transform(df, color_taxi: str) -> DataFrame:
 	return df
 
 
-def load(df, schema: str, table_name: str):
+def load(df, model: str, table_name: str):
 	# Read credentials from the config file
 	with open('config/config.json', 'r') as config:
 		config_data = json.load(config)
-	host = config_data[schema]['host']
-	port = config_data[schema]['port']
-	database = config_data[schema]['database']
-	user = config_data[schema]['user']
-	password = config_data[schema]['password']
+	host = config_data[model]['host']
+	port = config_data[model]['port']
+	database = config_data[model]['database']
+	user = config_data[model]['user']
+	password = config_data[model]['password']
 
 	url = 'jdbc:postgresql://{0}:{1}/{2}'.format(host, port, database)
 	properties = {
@@ -138,6 +139,3 @@ def etl_main():
 		df = transform(df, name)
 		load(df, schema, table_name=name)
 	spark.stop()
-
-
-etl_main()
