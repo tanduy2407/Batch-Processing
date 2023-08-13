@@ -40,18 +40,42 @@ def download_files():
 	print('Download successfully')
 
 
-def start_spark(app_name='Batch-Processing'):
+def start_spark(app_name='Batch-Processing', spark_config_dict={}):
 	"""
-	
+	Starts an Apache Spark session with optional configuration.
+
+	This function initializes an Apache Spark session with the provided
+	application name and optional configuration settings.
+
+	Parameters:
+			app_name (str): The name of the Spark application (default is 'Batch-Processing').
+			spark_config_dict (dict): A dictionary containing Spark configuration key-value pairs.
+
+	Returns:
+			pyspark.sql.SparkSession: A Spark session configured with the provided settings.
 	"""
-	spark = SparkSession.builder \
-		.appName(app_name) \
-		.config('spark.jars', 'driver/postgresql-42.6.0.jar') \
-		.getOrCreate()
-	return spark
+	spark_builder = SparkSession.builder \
+		.appName(app_name)
+	for key, value in spark_config_dict.items():
+		spark_builder.config(key, value)
+	spark_session = spark_builder.getOrCreate()
+	return spark_session
 
 
 def extract(spark):
+	"""
+	Extracts data from various sources using Apache Spark.
+
+	This function reads parquet files for green and yellow taxi data and
+	a CSV file for taxi zone lookup data using the provided Spark session.
+
+	Parameters:
+			spark (pyspark.sql.SparkSession): The Spark session to use for reading data.
+
+	Returns:
+			tuple: A tuple containing two DataFrames representing green and yellow taxi data,
+					   and a DataFrame containing taxi zone lookup data.
+	"""
 	green_taxi = spark.read.parquet('data/green_taxi')
 	yellow_taxi = spark.read.parquet('data/yellow_taxi')
 	df_zone = spark.read.csv('data/taxi_zone_lookup.csv',
@@ -88,23 +112,56 @@ def generate_dim_table(df):
 
 
 def transform(df, color_taxi: str) -> DataFrame:
+	"""
+	Transforms a DataFrame containing taxi trip data.
+
+	This function takes a DataFrame containing taxi trip data and applies
+	transformations such as renaming columns, calculating trip duration in
+	minutes, converting units, and calculating average velocity.
+
+	Parameters:
+			df (pyspark.sql.DataFrame): The input DataFrame containing taxi trip data.
+			color_taxi (str): The color of the taxi ('green_taxi' or 'yellow_taxi').
+
+	Returns:
+			pyspark.sql.DataFrame: The transformed DataFrame with added columns.
+	"""
 	if color_taxi == 'green_taxi':
-		df = df.withColumnRenamed('lpep_pickup_datetime', 'pickup_datetime').withColumnRenamed('lpep_dropoff_datetime', 'dropoff_datetime')
+		df = df.withColumnRenamed('lpep_pickup_datetime', 'pickup_datetime').withColumnRenamed(
+			'lpep_dropoff_datetime', 'dropoff_datetime')
 	if color_taxi == 'yellow_taxi':
-		df = df.withColumnRenamed('tpep_pickup_datetime', 'pickup_datetime').withColumnRenamed('tpep_dropoff_datetime', 'dropoff_datetime')
+		df = df.withColumnRenamed('tpep_pickup_datetime', 'pickup_datetime').withColumnRenamed(
+			'tpep_dropoff_datetime', 'dropoff_datetime')
 	trip_time_in_mins = unix_timestamp(
-		col('dropoff_datetime')) - unix_timestamp(col('pickup_datetime'))		
-	# df = df.withColumn('trip_id', monotonically_increasing_id())
-	df = df.withColumn('trip_time_in_mins', round(trip_time_in_mins / 60, 2)) # calculate time in minutes
-	df = df.withColumn('passenger_count', col('passenger_count').cast(IntegerType()))	
-	df = df.withColumn('trip_distance_in_km', round(col('trip_distance') * 1.6, 2)) # convert miles into km
+		col('dropoff_datetime')) - unix_timestamp(col('pickup_datetime'))
+	df = df.withColumn('trip_time_in_mins', round(
+		trip_time_in_mins / 60, 2))  # calculate time in minutes
+	df = df.withColumn('passenger_count', col(
+		'passenger_count').cast(IntegerType()))
+	df = df.withColumn('trip_distance_in_km', round(
+		col('trip_distance') * 1.6, 2))  # convert miles into km
 	time_in_hours = col('trip_time_in_mins') / 60
-	df = df.withColumn('average_velocity',  round(col('trip_distance_in_km') / time_in_hours, 2)) # calculate average speed
+	df = df.withColumn('average_velocity',  round(
+		col('trip_distance_in_km') / time_in_hours, 2))  # calculate average speed
 	return df
 
 
 def load(df, model: str, table_name: str):
-	# Read credentials from the config file
+	"""
+	Loads a DataFrame into a specified database table.
+
+	This function takes a DataFrame and inserts its content into a specified
+	database table using JDBC connection. The connection details are read from
+	a configuration file.
+
+	Parameters:
+		df (pyspark.sql.DataFrame): The DataFrame to be loaded into the database.
+		model (str): The model or environment for which to fetch database credentials.
+		table_name (str): The name of the database table to insert data into.
+
+	Returns:
+		None
+	"""
 	with open('config/config.json', 'r') as config:
 		config_data = json.load(config)
 	host = config_data[model]['host']
@@ -123,10 +180,14 @@ def load(df, model: str, table_name: str):
 	print(f'Insert data into {table_name} successfully!')
 
 
-def etl_main():
+def main_staging():
 	schema = 'staging'
 	download_files()
-	spark = start_spark()
+	config_dict = {'spark.jars': 'driver/postgresql-42.6.0.jar',
+				   'spark.executor.heartbeatInterval': '100000ms',
+				   'spark.executor.memory': '4g',
+				   'spark.driver.memory': '4g'}
+	spark = start_spark(spark_config_dict=config_dict)
 	dfs, df_zone = extract(spark)
 	dim_dfs = generate_dim_table(dfs[0])
 	dim_tables_name = ['payment', 'ratecode', 'vendor']
@@ -139,3 +200,5 @@ def etl_main():
 		df = transform(df, name)
 		load(df, schema, table_name=name)
 	spark.stop()
+
+# emain()

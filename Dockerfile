@@ -32,4 +32,4 @@ RUN apt-get install -y python3.10 python3-pip
 RUN pip install -r requirements.txt
 
 # Run container as an executable
-CMD ["python3", "main1.py"]
+CMD ["python3", "run.py"]
