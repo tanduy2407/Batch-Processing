@@ -23,13 +23,14 @@ ENV PATH=$PATH:$SPARK_HOME/bin
 WORKDIR /app
 
 # Copy files
-COPY requirements.txt .
-COPY etl.py .
+COPY requirements.txt requirements.txt
 COPY config/config.json config/config.json
+COPY dags dags
 
 # Install package with pip
-RUN apt-get install -y python3.10 python3-pip
+RUN apt-get update && apt-get install -y python3.10
+RUN apt-get update && apt-get install -y python3-pip
 RUN pip install -r requirements.txt
 
 # Run container as an executable
-CMD ["python3", "run.py"]
+CMD ["python3", "dags/run.py"]

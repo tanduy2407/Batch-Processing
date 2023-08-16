@@ -68,12 +68,13 @@ services:
     container_name: etl_job
   pgdb_staging:
     image: postgres:15
+    container_name: pgdb_staging
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=tanduy2407
       - POSTGRES_DB=staging_nytaxi
     volumes:
-      - ./postgres_data1:/var/lib/postgresql/data:rw
+      - ./postgres_data1:/var/lib/postgresql/data1:rw
     ports:
       - 5432:5432
     healthcheck:
@@ -83,12 +84,13 @@ services:
     restart: always
   pgdb_production:
     image: postgres:15
+    container_name: pgdb_production
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=tanduy2407
       - POSTGRES_DB=production_nytaxi
     volumes:
-      - ./postgres_data2:/var/lib/postgresql/data:rw
+      - ./postgres_data2:/var/lib/postgresql/data2:rw
     ports:
       - 5433:5432
     healthcheck:
@@ -104,5 +106,7 @@ services:
     ports:
       - 8080:80
     depends_on:
-      pgdatabase:
+      pgdb_staging:
+        condition: service_healthy
+      pgdb_production:
         condition: service_healthy
