@@ -5,3 +5,4 @@ postgres_data1
 postgres_data2
 __pycache__
 logs
+venv

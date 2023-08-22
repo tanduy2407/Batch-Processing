@@ -17,9 +17,9 @@ def download_files():
 		print(f'Error: {err}')
 
 	os.system(
-		'wget -O driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
+		'curl -o driver/postgresql-42.6.0.jar https://jdbc.postgresql.org/download/postgresql-42.6.0.jar')
 	os.system(
-		'wget -O data/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
+		'curl -o data/taxi_zone_lookup.csv https://d37ci6vzurychx.cloudfront.net/misc/taxi+_zone_lookup.csv')
 
 	print('Start download parquet files')
 	for i in range(1, 3):
@@ -28,7 +28,7 @@ def download_files():
 			year, month)
 		csv_name = 'data/green_taxi/green_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'wget -O {csv_name} {url}')
+		os.system(f'curl -o {csv_name} {url}')
 
 	for i in range(1, 3):
 		month = f'{i:02}'
@@ -36,7 +36,7 @@ def download_files():
 			year, month)
 		csv_name = 'data/yellow_taxi/yellow_tripdata_{0}-{1}.parquet'.format(
 			year, month)
-		os.system(f'wget -O {csv_name} {url}')
+		os.system(f'curl -o {csv_name} {url}')
 	print('Download successfully')
 
 

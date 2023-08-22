@@ -1,13 +1,13 @@
 {
     "staging": {
-        "host": "pgdb_staging",
+        "host": "localhost",
         "port": "5432",
         "database": "staging_nytaxi",
         "user": "postgres",
         "password": "tanduy2407"
     },
     "production": {
-        "host": "pgdb_production",
+        "host": "localhost",
         "port": "5432",
         "database": "production_nytaxi",
         "user": "postgres",
